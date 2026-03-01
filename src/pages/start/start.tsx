@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import scenariosData from '../../json/scenarios.json';
+import logoSrc from './blue.png';
 
 type ScenarioItem = {
   id?: string;
@@ -18,7 +19,7 @@ export default function StarterPage() {
       {/* Left half */}
       <div className="flex flex-1 flex-col items-center justify-center p-8 md:p-12">
         <div className="flex flex-col items-center space-y-2">
-          <img src="/images/logo.png" alt="SafeCall" className="w-20 h-20 md:w-24 md:h-24 object-contain mb-1" />
+          <img src={logoSrc} alt="SafeCall" className="w-20 h-20 md:w-24 md:h-24 object-contain mb-1" />
           <h1
             className="text-center font-bold leading-tight bg-linear-to-b from-white to-white/25 bg-clip-text text-transparent m-0"
             style={{ fontSize: 'clamp(4rem, 22vw, 10rem)', lineHeight: 1.1 }}
