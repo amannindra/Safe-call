@@ -17,7 +17,7 @@ export default function App() {
           <Route path="/" element={<StarterPage />} />
           <Route path="training" element={<TrainingPage />} />
           <Route path="/testing" element={<TestingPage />} />
-          <Route path='summary' element={<SummaryPage />} />
+          <Route path='/summary' element={<SummaryPage />} />
           {/* <Route path="transcript" element={<TranscriptWindow />} />
           <Route path="summary" element={<SummaryWindow />} />
           <Route path="audio" element={<AudioWindow />} /> */}
