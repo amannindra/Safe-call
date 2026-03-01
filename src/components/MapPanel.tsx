@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   APIProvider,
   Map,
@@ -119,11 +119,14 @@ type MapPanelProps = {
 };
 
 export function MapPanel({ targetLocation }: MapPanelProps = {}) {
-  // Scenario mode: single guess pin
-  const [guessPin, setGuessPin] = useState<Pin | null>(null);
+  // Scenario mode
+  const [guessPin, setGuessPin]             = useState<Pin | null>(null);
   const [targetRevealed, setTargetRevealed] = useState(false);
+  const [currentDist, setCurrentDist]       = useState<number | null>(null);
+  const [bestDist, setBestDist]             = useState<number | null>(null);
+  const [isNewBest, setIsNewBest]           = useState(false);
 
-  // Free mode: multi-pin
+  // Free mode
   const [pins, setPins] = useState<Pin[]>([]);
 
   const isScenarioMode = !!targetLocation;
@@ -134,27 +137,40 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
   );
   const defaultZoom = targetLocation ? 12 : 4;
 
-  const distanceMetres = useMemo(() => {
-    if (!guessPin || !targetLocation) return null;
-    return haversineMetres(guessPin.lat, guessPin.lng, targetLocation.lat, targetLocation.lng);
-  }, [guessPin, targetLocation]);
-
-  const accuracy = distanceMetres !== null ? getAccuracy(distanceMetres) : null;
+  const accuracy     = currentDist !== null ? getAccuracy(currentDist) : null;
+  const bestAccuracy = bestDist    !== null ? getAccuracy(bestDist)    : null;
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     if (!e.detail.latLng) return;
     const { lat, lng } = e.detail.latLng;
-    if (isScenarioMode) {
+    if (isScenarioMode && targetLocation) {
+      const dist = haversineMetres(lat, lng, targetLocation.lat, targetLocation.lng);
       setGuessPin({ id: 'guess', lat, lng });
       setTargetRevealed(true);
+      setCurrentDist(dist);
+      setBestDist((prev) => {
+        const newBest = prev === null || dist < prev;
+        setIsNewBest(newBest);
+        return newBest ? dist : prev;
+      });
     } else {
       setPins((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, lat, lng }]);
     }
-  }, [isScenarioMode]);
+  }, [isScenarioMode, targetLocation]);
+
+  // Clear the "New best!" badge after 2 s
+  useEffect(() => {
+    if (!isNewBest) return;
+    const t = setTimeout(() => setIsNewBest(false), 2000);
+    return () => clearTimeout(t);
+  }, [isNewBest]);
 
   const handleReset = useCallback(() => {
     setGuessPin(null);
     setTargetRevealed(false);
+    setCurrentDist(null);
+    setBestDist(null);
+    setIsNewBest(false);
   }, []);
 
   const handleDeleteFreePin = useCallback((id: string) => {
@@ -245,24 +261,47 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
         </div>
 
         {/* Distance result (scenario mode only) */}
-        {isScenarioMode && distanceMetres !== null && accuracy && (
+        {isScenarioMode && currentDist !== null && accuracy && bestDist !== null && bestAccuracy && (
           <div className="rounded-xl border border-elevenlabs-border bg-elevenlabs-dark p-4 flex flex-col gap-3">
+
+            {/* Current guess row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className={`w-4 h-4 ${accuracy.colour}`} />
                 <span className={`text-sm font-semibold ${accuracy.colour}`}>{accuracy.label}</span>
+                {isNewBest && (
+                  <span className="animate-bounce text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                    New best!
+                  </span>
+                )}
               </div>
               <span className="text-sm font-mono text-white/80">
-                {formatDistance(distanceMetres)} from target
+                {formatDistance(currentDist)}
               </span>
             </div>
-            {/* Accuracy bar */}
+
+            {/* Accuracy bar for current */}
             <div className="h-1.5 w-full rounded-full bg-elevenlabs-border overflow-hidden">
               <div className={`h-full rounded-full transition-all duration-500 ${accuracy.barColour} ${accuracy.barWidth}`} />
             </div>
+
+            {/* Best score row (only shown after more than one attempt) */}
+            {currentDist !== bestDist && (
+              <div className="flex items-center justify-between pt-1 border-t border-elevenlabs-border">
+                <span className="text-xs text-elevenlabs-muted flex items-center gap-1.5">
+                  <Target className="w-3 h-3 text-emerald-400" />
+                  Best so far
+                  <span className={`font-medium ${bestAccuracy.colour}`}>· {bestAccuracy.label}</span>
+                </span>
+                <span className="text-xs font-mono text-emerald-400 font-semibold">
+                  {formatDistance(bestDist)}
+                </span>
+              </div>
+            )}
+
             <p className="text-xs text-elevenlabs-muted">
               Target: <span className="text-white/70">{targetLocation?.label}</span>
-              {' · '}Green marker shows the actual location
+              {' · '}Click anywhere to try a better guess
             </p>
           </div>
         )}
@@ -270,7 +309,7 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
         {/* Hint text */}
         {isScenarioMode && !guessPin && (
           <p className="text-xs text-elevenlabs-muted">
-            Listen to the caller and click the map to mark where you think they are.
+            Listen to the caller · click the map to mark where you think they are.
           </p>
         )}
         {!isScenarioMode && (
