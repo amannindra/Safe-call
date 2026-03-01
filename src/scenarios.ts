@@ -53,3 +53,26 @@ export const SCENARIOS: Record<string, Record<string, string | number | boolean>
   // medical: toDynamicVariables(medicalScenario),
   // robbery: toDynamicVariables(robberyScenario),
 };
+
+export type ScenarioTargetLocation = {
+  lat: number;
+  lng: number;
+  label: string;
+};
+
+/**
+ * Out-of-band metadata per scenario (not sent to the agent).
+ * targetLocation is the real-world coordinate the caller is at —
+ * used by the map panel to score the dispatcher's guess.
+ *
+ * Oakridge Towers → placed at a realistic Chicago high-rise location.
+ */
+export const SCENARIO_META: Record<string, { targetLocation?: ScenarioTargetLocation }> = {
+  fire: {
+    targetLocation: {
+      lat: 41.8848,
+      lng: -87.6317,
+      label: 'Oakridge Towers, Apt 12B',
+    },
+  },
+};

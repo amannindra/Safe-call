@@ -7,7 +7,7 @@ import { TranscriptPanel, type TranscriptMessage } from '../../components/Transc
 import { SummaryPanel } from '../../components/SummaryPanel';
 import { AudioWavePanel } from '../../components/AudioWavePanel';
 import { MapPanel } from '../../components/MapPanel';
-import { SCENARIOS } from '../../scenarios';
+import { SCENARIOS, SCENARIO_META } from '../../scenarios';
 import { writeTranscript, writeSummary, writeMic, type TranscriptMessageSync } from '../../sync';
 
 const AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID ?? '';
@@ -338,7 +338,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <MapPanel />
+            <MapPanel targetLocation={selectedScenario ? SCENARIO_META[selectedScenario]?.targetLocation : undefined} />
           </div>
 
           <div className="flex flex-col gap-4">
