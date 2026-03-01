@@ -1,10 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   APIProvider,
   Map,
   AdvancedMarker,
 } from '@vis.gl/react-google-maps';
-import type { MapMouseEvent } from '@vis.gl/react-google-maps';
+import type { MapMouseEvent, MapCameraChangedEvent } from '@vis.gl/react-google-maps';
 import { MapPin, X, Trash2 } from 'lucide-react';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
@@ -14,6 +14,9 @@ type Pin = {
   lat: number;
   lng: number;
 };
+
+/** Fallback coords for Maplewood, NJ area when geocoding fails */
+const FALLBACK_CENTER = { lat: 40.7312, lng: -74.273 };
 
 const DARK_MAP_ID = 'dark-map';
 
@@ -73,8 +76,48 @@ function PinMarker({ pin, onDelete }: { pin: Pin; onDelete: (id: string) => void
   );
 }
 
-export function MapPanel() {
+type MapPanelProps = {
+  /** Optional address to geocode and pin on load (e.g. "742 Maplewood Drive, Brookside") */
+  initialAddress?: string;
+};
+
+export function MapPanel({ initialAddress }: MapPanelProps = {}) {
   const [pins, setPins] = useState<Pin[]>([]);
+  const [center, setCenter] = useState(FALLBACK_CENTER);
+  const [zoom, setZoom] = useState(4);
+
+  useEffect(() => {
+    if (!initialAddress || !API_KEY) return;
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(initialAddress)}&key=${API_KEY}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        const loc = data?.results?.[0]?.geometry?.location;
+        if (loc?.lat != null && loc?.lng != null) {
+          const pin: Pin = { id: 'initial', lat: loc.lat, lng: loc.lng };
+          setPins((prev) => (prev.some((p) => p.id === 'initial') ? prev : [pin, ...prev]));
+          setCenter({ lat: loc.lat, lng: loc.lng });
+          setZoom(15);
+        } else {
+          const pin: Pin = { id: 'initial', lat: FALLBACK_CENTER.lat, lng: FALLBACK_CENTER.lng };
+          setPins((prev) => (prev.some((p) => p.id === 'initial') ? prev : [pin, ...prev]));
+          setCenter(FALLBACK_CENTER);
+          setZoom(15);
+        }
+      })
+      .catch(() => {
+        const pin: Pin = { id: 'initial', lat: FALLBACK_CENTER.lat, lng: FALLBACK_CENTER.lng };
+        setPins((prev) => (prev.some((p) => p.id === 'initial') ? prev : [pin, ...prev]));
+        setCenter(FALLBACK_CENTER);
+        setZoom(15);
+      });
+  }, [initialAddress]);
+
+  const handleCameraChange = useCallback((ev: MapCameraChangedEvent) => {
+    const d = ev.detail;
+    if (d?.center) setCenter(d.center);
+    if (d?.zoom != null) setZoom(d.zoom);
+  }, []);
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     if (!e.detail.latLng) return;
@@ -134,8 +177,9 @@ export function MapPanel() {
         <div className="rounded-xl overflow-hidden border border-elevenlabs-border" style={{ height: 320 }}>
           <Map
             mapId={DARK_MAP_ID}
-            defaultCenter={{ lat: 39.8283, lng: -98.5795 }}
-            defaultZoom={4}
+            center={center}
+            zoom={zoom}
+            onCameraChanged={handleCameraChange}
             gestureHandling="greedy"
             disableDefaultUI={false}
             styles={MAP_STYLES}

@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { FileText, MessageSquare, ArrowLeft, ArrowRight } from "lucide-react";
+import { MapPanel } from "../../components/MapPanel";
 
 export default function TrainingPage() {
   const navigate = useNavigate();
@@ -37,7 +38,8 @@ Dispatcher: That's them. Wave them down. Stay safe.`;
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="flex-1 flex flex-col gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="rounded-2xl border border-elevenlabs-border bg-elevenlabs-card p-6 flex flex-col gap-4 min-h-[420px]">
           <div className="flex items-center gap-2 border-b border-elevenlabs-border pb-3">
             <MessageSquare className="w-4 h-4 text-elevenlabs-accent" />
@@ -57,6 +59,8 @@ Dispatcher: That's them. Wave them down. Stay safe.`;
             {feedback}
           </p>
         </div>
+        </div>
+        <MapPanel initialAddress="742 Maplewood Drive, Brookside" />
       </div>
 
       <div className="flex justify-center pt-8 pb-2">
