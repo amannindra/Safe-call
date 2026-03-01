@@ -5,7 +5,7 @@ import {
   AdvancedMarker,
 } from '@vis.gl/react-google-maps';
 import type { MapMouseEvent } from '@vis.gl/react-google-maps';
-import { MapPin, X, Trash2, Target, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { MapPin, X, Trash2, Target, RotateCcw, CheckCircle2, Lock } from 'lucide-react';
 import type { ScenarioTargetLocation } from '../scenarios';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
@@ -33,7 +33,6 @@ const MAP_STYLES: MapStyle[] = [
   { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d1d5db' }] },
 ];
 
-/** Haversine distance in metres between two lat/lng points. */
 function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6_371_000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -47,17 +46,17 @@ function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number)
 
 type AccuracyTier = {
   label: string;
-  colour: string;      // Tailwind text colour
-  barColour: string;   // Tailwind bg colour
-  barWidth: string;    // Tailwind width class
+  colour: string;
+  barColour: string;
+  barWidth: string;
 };
 
 function getAccuracy(metres: number): AccuracyTier {
-  if (metres < 150)   return { label: 'Exact',        colour: 'text-emerald-400', barColour: 'bg-emerald-400', barWidth: 'w-full' };
-  if (metres < 500)   return { label: 'Very Close',   colour: 'text-green-400',   barColour: 'bg-green-400',   barWidth: 'w-4/5' };
-  if (metres < 2000)  return { label: 'Close',        colour: 'text-yellow-400',  barColour: 'bg-yellow-400',  barWidth: 'w-3/5' };
-  if (metres < 8000)  return { label: 'In the Area',  colour: 'text-orange-400',  barColour: 'bg-orange-400',  barWidth: 'w-2/5' };
-  return               { label: 'Off Target',  colour: 'text-red-400',    barColour: 'bg-red-400',    barWidth: 'w-1/5' };
+  if (metres < 150)  return { label: 'Exact',       colour: 'text-emerald-400', barColour: 'bg-emerald-400', barWidth: 'w-full' };
+  if (metres < 500)  return { label: 'Very Close',  colour: 'text-green-400',   barColour: 'bg-green-400',   barWidth: 'w-4/5' };
+  if (metres < 2000) return { label: 'Close',       colour: 'text-yellow-400',  barColour: 'bg-yellow-400',  barWidth: 'w-3/5' };
+  if (metres < 8000) return { label: 'In the Area', colour: 'text-orange-400',  barColour: 'bg-orange-400',  barWidth: 'w-2/5' };
+  return              { label: 'Off Target',  colour: 'text-red-400',    barColour: 'bg-red-400',    barWidth: 'w-1/5' };
 }
 
 function formatDistance(metres: number): string {
@@ -95,7 +94,6 @@ function TargetMarker({ location }: { location: ScenarioTargetLocation }) {
   return (
     <AdvancedMarker position={{ lat: location.lat, lng: location.lng }}>
       <div className="relative flex flex-col items-center">
-        {/* Pulsing ring */}
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="animate-ping absolute inline-flex h-9 w-9 rounded-full bg-emerald-400 opacity-30" />
         </span>
@@ -114,25 +112,34 @@ function TargetMarker({ location }: { location: ScenarioTargetLocation }) {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
+export type MapScoringMode = 'training' | 'testing';
+
 type MapPanelProps = {
   targetLocation?: ScenarioTargetLocation;
+  /** training = multi-click with best-score tracking
+   *  testing  = single locked click, plain distance result */
+  scoringMode?: MapScoringMode;
 };
 
-export function MapPanel({ targetLocation }: MapPanelProps = {}) {
-  // Scenario mode
+export function MapPanel({ targetLocation, scoringMode = 'training' }: MapPanelProps = {}) {
   const [guessPin, setGuessPin]             = useState<Pin | null>(null);
   const [targetRevealed, setTargetRevealed] = useState(false);
   const [currentDist, setCurrentDist]       = useState<number | null>(null);
   const [bestDist, setBestDist]             = useState<number | null>(null);
   const [isNewBest, setIsNewBest]           = useState(false);
 
-  // Free mode
+  // Free mode (no targetLocation)
   const [pins, setPins] = useState<Pin[]>([]);
 
-  const isScenarioMode = !!targetLocation;
+  const hasTarget     = !!targetLocation;
+  const isTestingMode = hasTarget && scoringMode === 'testing';
+  const isTrainingMode = hasTarget && scoringMode === 'training';
+  const locked        = isTestingMode && guessPin !== null;
 
   const defaultCenter = useMemo(
-    () => targetLocation ? { lat: targetLocation.lat, lng: targetLocation.lng } : { lat: 39.8283, lng: -98.5795 },
+    () => targetLocation
+      ? { lat: targetLocation.lat, lng: targetLocation.lng }
+      : { lat: 39.8283, lng: -98.5795 },
     [targetLocation],
   );
   const defaultZoom = targetLocation ? 12 : 4;
@@ -142,23 +149,31 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     if (!e.detail.latLng) return;
+    if (locked) return;                          // testing: ignore clicks after first
+
     const { lat, lng } = e.detail.latLng;
-    if (isScenarioMode && targetLocation) {
-      const dist = haversineMetres(lat, lng, targetLocation.lat, targetLocation.lng);
-      setGuessPin({ id: 'guess', lat, lng });
-      setTargetRevealed(true);
-      setCurrentDist(dist);
+
+    if (!hasTarget) {
+      // free mode
+      setPins((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, lat, lng }]);
+      return;
+    }
+
+    const dist = haversineMetres(lat, lng, targetLocation!.lat, targetLocation!.lng);
+    setGuessPin({ id: 'guess', lat, lng });
+    setTargetRevealed(true);
+    setCurrentDist(dist);
+
+    if (isTrainingMode) {
       setBestDist((prev) => {
         const newBest = prev === null || dist < prev;
         setIsNewBest(newBest);
         return newBest ? dist : prev;
       });
-    } else {
-      setPins((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, lat, lng }]);
     }
-  }, [isScenarioMode, targetLocation]);
+  }, [locked, hasTarget, targetLocation, isTrainingMode]);
 
-  // Clear the "New best!" badge after 2 s
+  // Auto-clear "New best!" badge after 2 s
   useEffect(() => {
     if (!isNewBest) return;
     const t = setTimeout(() => setIsNewBest(false), 2000);
@@ -177,6 +192,7 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
     setPins((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+  // ── No API key ────────────────────────────────────────────────────────────
   if (!API_KEY) {
     return (
       <div className="rounded-2xl border border-elevenlabs-border bg-elevenlabs-card p-6">
@@ -195,6 +211,7 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <APIProvider apiKey={API_KEY}>
       <div className="rounded-2xl border border-elevenlabs-border bg-elevenlabs-card p-6 flex flex-col gap-4">
@@ -204,27 +221,38 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-elevenlabs-accent" />
             <h2 className="text-base font-semibold">Map</h2>
-            {isScenarioMode && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-elevenlabs-accent/20 text-indigo-300 border border-indigo-500/30">
-                Scenario
+            {isTrainingMode && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-300 border border-yellow-500/30">
+                Training
               </span>
             )}
-            {!isScenarioMode && pins.length > 0 && (
+            {isTestingMode && (
+              <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                locked
+                  ? 'bg-red-500/15 text-red-300 border-red-500/30'
+                  : 'bg-elevenlabs-accent/20 text-indigo-300 border-indigo-500/30'
+              }`}>
+                {locked ? 'Locked' : 'Testing'}
+              </span>
+            )}
+            {!hasTarget && pins.length > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-elevenlabs-border text-elevenlabs-muted">
                 {pins.length} {pins.length === 1 ? 'pin' : 'pins'}
               </span>
             )}
           </div>
+
           <div className="flex items-center gap-2">
-            {isScenarioMode && guessPin && (
+            {hasTarget && guessPin && (
               <button
                 onClick={handleReset}
                 className="flex items-center gap-1.5 text-xs text-elevenlabs-muted hover:text-white transition-colors"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Try again
+                <RotateCcw className="w-3.5 h-3.5" />
+                {isTestingMode ? 'Reset' : 'Try again'}
               </button>
             )}
-            {!isScenarioMode && pins.length > 0 && (
+            {!hasTarget && pins.length > 0 && (
               <button
                 onClick={() => setPins([])}
                 className="flex items-center gap-1.5 text-xs text-elevenlabs-muted hover:text-red-400 transition-colors"
@@ -236,7 +264,10 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
         </div>
 
         {/* Map */}
-        <div className="rounded-xl overflow-hidden border border-elevenlabs-border" style={{ height: 320 }}>
+        <div
+          className={`rounded-xl overflow-hidden border border-elevenlabs-border ${locked ? 'opacity-80 cursor-not-allowed' : ''}`}
+          style={{ height: 320 }}
+        >
           <Map
             mapId="dark-map"
             defaultCenter={defaultCenter}
@@ -247,10 +278,10 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
             onClick={handleMapClick}
             className="w-full h-full"
           >
-            {isScenarioMode ? (
+            {hasTarget ? (
               <>
                 {guessPin && <GuessPinMarker pin={guessPin} onDelete={handleReset} />}
-                {targetRevealed && targetLocation && <TargetMarker location={targetLocation} />}
+                {targetRevealed && <TargetMarker location={targetLocation!} />}
               </>
             ) : (
               pins.map((pin) => (
@@ -260,11 +291,30 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
           </Map>
         </div>
 
-        {/* Distance result (scenario mode only) */}
-        {isScenarioMode && currentDist !== null && accuracy && bestDist !== null && bestAccuracy && (
+        {/* ── TESTING result card ─────────────────────────────────────── */}
+        {isTestingMode && currentDist !== null && accuracy && (
           <div className="rounded-xl border border-elevenlabs-border bg-elevenlabs-dark p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`w-4 h-4 ${accuracy.colour}`} />
+                <span className={`text-sm font-semibold ${accuracy.colour}`}>{accuracy.label}</span>
+                <Lock className="w-3 h-3 text-elevenlabs-muted" />
+              </div>
+              <span className="text-sm font-mono text-white/80">{formatDistance(currentDist)}</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-elevenlabs-border overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${accuracy.barColour} ${accuracy.barWidth}`} />
+            </div>
+            <p className="text-xs text-elevenlabs-muted">
+              Target: <span className="text-white/70">{targetLocation?.label}</span>
+              {' · '}Green marker shows the actual location
+            </p>
+          </div>
+        )}
 
-            {/* Current guess row */}
+        {/* ── TRAINING result card ────────────────────────────────────── */}
+        {isTrainingMode && currentDist !== null && accuracy && bestDist !== null && bestAccuracy && (
+          <div className="rounded-xl border border-elevenlabs-border bg-elevenlabs-dark p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className={`w-4 h-4 ${accuracy.colour}`} />
@@ -275,17 +325,11 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
                   </span>
                 )}
               </div>
-              <span className="text-sm font-mono text-white/80">
-                {formatDistance(currentDist)}
-              </span>
+              <span className="text-sm font-mono text-white/80">{formatDistance(currentDist)}</span>
             </div>
-
-            {/* Accuracy bar for current */}
             <div className="h-1.5 w-full rounded-full bg-elevenlabs-border overflow-hidden">
               <div className={`h-full rounded-full transition-all duration-500 ${accuracy.barColour} ${accuracy.barWidth}`} />
             </div>
-
-            {/* Best score row (only shown after more than one attempt) */}
             {currentDist !== bestDist && (
               <div className="flex items-center justify-between pt-1 border-t border-elevenlabs-border">
                 <span className="text-xs text-elevenlabs-muted flex items-center gap-1.5">
@@ -293,12 +337,9 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
                   Best so far
                   <span className={`font-medium ${bestAccuracy.colour}`}>· {bestAccuracy.label}</span>
                 </span>
-                <span className="text-xs font-mono text-emerald-400 font-semibold">
-                  {formatDistance(bestDist)}
-                </span>
+                <span className="text-xs font-mono text-emerald-400 font-semibold">{formatDistance(bestDist)}</span>
               </div>
             )}
-
             <p className="text-xs text-elevenlabs-muted">
               Target: <span className="text-white/70">{targetLocation?.label}</span>
               {' · '}Click anywhere to try a better guess
@@ -307,12 +348,17 @@ export function MapPanel({ targetLocation }: MapPanelProps = {}) {
         )}
 
         {/* Hint text */}
-        {isScenarioMode && !guessPin && (
+        {isTestingMode && !guessPin && (
           <p className="text-xs text-elevenlabs-muted">
-            Listen to the caller · click the map to mark where you think they are.
+            Listen to the caller · click once to mark where you think they are.
           </p>
         )}
-        {!isScenarioMode && (
+        {isTrainingMode && !guessPin && (
+          <p className="text-xs text-elevenlabs-muted">
+            Read the transcript · click to find the location · click again to improve your score.
+          </p>
+        )}
+        {!hasTarget && (
           <p className="text-xs text-elevenlabs-muted">
             Click anywhere to drop a pin · Click a pin to remove it
           </p>

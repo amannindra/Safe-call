@@ -1,6 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import { FileText, MessageSquare, ArrowLeft, ArrowRight } from "lucide-react";
 import { MapPanel } from "../../components/MapPanel";
+import type { ScenarioTargetLocation } from "../../scenarios";
+
+const TRAINING_TARGET: ScenarioTargetLocation = {
+  lat: 40.8101,
+  lng: -74.5083,
+  label: '742 Maplewood Drive, Brookside',
+};
 
 export default function TrainingPage() {
   const navigate = useNavigate();
@@ -60,7 +67,7 @@ Dispatcher: That's them. Wave them down. Stay safe.`;
           </p>
         </div>
         </div>
-        <MapPanel initialAddress="742 Maplewood Drive, Brookside" />
+        <MapPanel targetLocation={TRAINING_TARGET} scoringMode="training" />
       </div>
 
       <div className="flex justify-center pt-8 pb-2">

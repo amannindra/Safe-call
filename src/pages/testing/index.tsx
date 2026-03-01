@@ -338,7 +338,10 @@ export default function HomePage() {
               </div>
             </div>
 
-            <MapPanel targetLocation={selectedScenario ? SCENARIO_META[selectedScenario]?.targetLocation : undefined} />
+            <MapPanel
+              targetLocation={selectedScenario ? SCENARIO_META[selectedScenario]?.targetLocation : undefined}
+              scoringMode="testing"
+            />
           </div>
 
           <div className="flex flex-col gap-4">
