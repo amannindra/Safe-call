@@ -6,6 +6,7 @@ import { AgentOrb } from '../../components/AgentOrb';
 import { TranscriptPanel, type TranscriptMessage } from '../../components/TranscriptPanel';
 import { SummaryPanel } from '../../components/SummaryPanel';
 import { AudioWavePanel } from '../../components/AudioWavePanel';
+import { MapPanel } from '../../components/MapPanel';
 import { SCENARIOS } from '../../scenarios';
 import { writeTranscript, writeSummary, writeMic, type TranscriptMessageSync } from '../../sync';
 
@@ -299,41 +300,45 @@ export default function HomePage() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-elevenlabs-border bg-elevenlabs-card p-8 min-h-[420px]">
-            <div className="flex flex-col items-center gap-6">
-              <AgentOrb
-                getInputVolume={getInputVolume}
-                getOutputVolume={getOutputVolume}
-                isSpeaking={conversation.isSpeaking}
-                status={statusStr}
-              />
-              {error && (
-                <p className="text-sm text-red-400 text-center max-w-md">{error}</p>
-              )}
-              <button
-                onClick={isActive ? handleEnd : handleStart}
-                disabled={statusStr.startsWith('connecting')}
-                className={`
-                  flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all
-                  ${isActive
-                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                    : 'bg-elevenlabs-accent text-white hover:bg-indigo-600'
-                  }
-                `}
-              >
-                {isActive ? (
-                  <>
-                    <PhoneOffIcon className="w-5 h-5" />
-                    End conversation
-                  </>
-                ) : (
-                  <>
-                    <PhoneIcon className="w-5 h-5" />
-                    Start conversation
-                  </>
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-elevenlabs-border bg-elevenlabs-card p-8 min-h-[420px]">
+              <div className="flex flex-col items-center gap-6">
+                <AgentOrb
+                  getInputVolume={getInputVolume}
+                  getOutputVolume={getOutputVolume}
+                  isSpeaking={conversation.isSpeaking}
+                  status={statusStr}
+                />
+                {error && (
+                  <p className="text-sm text-red-400 text-center max-w-md">{error}</p>
                 )}
-              </button>
+                <button
+                  onClick={isActive ? handleEnd : handleStart}
+                  disabled={statusStr.startsWith('connecting')}
+                  className={`
+                    flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all
+                    ${isActive
+                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                      : 'bg-elevenlabs-accent text-white hover:bg-indigo-600'
+                    }
+                  `}
+                >
+                  {isActive ? (
+                    <>
+                      <PhoneOffIcon className="w-5 h-5" />
+                      End conversation
+                    </>
+                  ) : (
+                    <>
+                      <PhoneIcon className="w-5 h-5" />
+                      Start conversation
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
+
+            <MapPanel />
           </div>
 
           <div className="flex flex-col gap-4">
