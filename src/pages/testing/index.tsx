@@ -7,6 +7,7 @@ import { TranscriptPanel, type TranscriptMessage } from '../../components/Transc
 import { SummaryPanel } from '../../components/SummaryPanel';
 import { AudioWavePanel } from '../../components/AudioWavePanel';
 import { MapPanel } from '../../components/MapPanel';
+import { ScorePanel } from '../../components/ScorePanel';
 import { SCENARIOS, SCENARIO_META } from '../../scenarios';
 import { writeTranscript, writeSummary, writeMic, type TranscriptMessageSync } from '../../sync';
 
@@ -35,13 +36,20 @@ export default function HomePage() {
   const [summary] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<keyof typeof SCENARIOS | ''>('fire');
+  const [sessionEnded, setSessionEnded] = useState(false);
   const connectionType = useConnectionType();
 
   const conversation = useConversation({
     onConnect: () => {
       setError(null);
     },
-    onDisconnect: () => {},
+    onDisconnect: () => {
+      setSessionEnded((prev) => {
+        // only flip to true if there were messages (i.e. real session occurred)
+        if (!prev) return true;
+        return prev;
+      });
+    },
     onMessage: (message: { source?: string; message?: string }) => {
       const text = message.message ?? '';
       if (text) {
@@ -71,6 +79,7 @@ export default function HomePage() {
     }
     setError(null);
     setMessages([]);
+    setSessionEnded(false);
     if (typeof navigator?.mediaDevices?.getUserMedia === 'function') {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -346,6 +355,11 @@ export default function HomePage() {
 
           <div className="flex flex-col gap-4">
             <TranscriptPanel messages={messages} />
+            <ScorePanel
+              messages={messages}
+              sessionEnded={sessionEnded}
+              isActive={isActive}
+            />
             <SummaryPanel summary={summaryText} />
             <AudioWavePanel
               getInputByteFrequencyData={safeGetInputFreq}
