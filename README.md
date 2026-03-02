@@ -1,110 +1,80 @@
-# ElevenLabs Agent — Web Spatial UI
+# SafeCall: Emergency Dispatch Simulator
 
-A React app that runs an **ElevenLabs Conversational AI agent** over **WebRTC** with a layout inspired by ElevenLabs UI:
+![Agent](Image.png)
 
-- **Center**: Main agent view with an animated orb that reacts to mic input and agent output
-- **Right side**: Live transcript, summary, and audio level bars (mic + agent)
+SafeCall is a web-based, real-time voice simulator designed for training and testing emergency dispatchers. It uses the **ElevenLabs Conversational AI API** to create dynamic, voice-driven emergency scenarios (like fire emergencies) and automatically evaluates the dispatcher's performance based on their responses.
 
-## Setup
 
-1. **Install dependencies** (already done if you cloned):
 
+
+## Features
+
+- **Real-time Voice Conversation:** Uses ElevenLabs Conversational AI over WebRTC for low-latency, natural voice interactions with an AI "caller".
+- **Dynamic Scenarios:** Inject dynamic variables (e.g., caller name, emergency type, location) into the AI agent to instantly switch between different training scenarios (Fire, Medical, Robbery, etc.).
+- **Live Transcript & Audio Visualization:** View the conversation transcript in real time, alongside an audio visualizer for mic input/output levels.
+- **Automated Grading System:** Parses STT (Speech-to-Text) transcripts to grade dispatchers based on a custom rubric:
+  - Did they ask for the location?
+  - Did they check for building occupancy?
+  - Did they assess medical injuries?
+  - Did they give proper safety/evacuation instructions?
+  - Did they communicate clearly (measuring turns and verbosity)?
+- **Geospatial Pinpointing (Google Maps Integration):** Listen to the caller's location, drop a pin on a Google Map, and receive a score based on the Haversine distance to the actual target. Includes specific behaviors for "Training" (multiple attempts with best score tracking) and "Testing" (single locked guess).
+
+## Tech Stack
+
+- **Frontend:** React.js, TypeScript, Vite
+- **Styling:** Tailwind CSS v4, Lucide React (icons)
+- **AI / Voice:** `@elevenlabs/react` (ElevenLabs Conversational AI)
+- **Maps / Location:** `@vis.gl/react-google-maps` (Google Maps Platform)
+
+## Prerequisites
+
+To run this application, you need the following API keys:
+
+1. **ElevenLabs Agent ID:** Create a Conversational AI agent in the [ElevenLabs Dashboard](https://elevenlabs.io/app/conversational-ai).
+2. **Google Maps API Key:** Create a project in the [Google Cloud Console](https://console.cloud.google.com/) and enable the **Maps JavaScript API**.
+
+## Getting Started
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/elevenlabs-agent-app.git
+   cd elevenlabs-agent-app
+   ```
+
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-2. **Configure your agent**  
-   Copy `.env.example` to `.env` and set your agent ID from [ElevenLabs Conversational AI](https://elevenlabs.io/app/conversational-ai):
+3. **Environment Setup:**
+   Create a `.env` file in the root directory and add your API keys:
+   ```env
+   VITE_ELEVENLABS_AGENT_ID=your_elevenlabs_agent_id_here
+   VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+   ```
 
+4. **Start the development server:**
    ```bash
-   cp .env.example .env
+   npm run dev
    ```
 
-   Edit `.env`:
+5. **Open the app:**
+   Navigate to `http://localhost:5173` in your browser.
 
-   ```
-   VITE_ELEVENLABS_AGENT_ID=your_agent_id_here
-   ```
+## Project Structure
 
-   Use a **public** agent, or implement a backend that returns a signed URL (WebSocket) or conversation token (WebRTC) and call it from the app.
+- `src/pages/start/` - Landing page.
+- `src/pages/training/` - Training mode (review transcripts, practice map pinpointing).
+- `src/pages/testing/` - Testing mode (live conversation with AI, automated scoring, single-guess map).
+- `src/components/MapPanel.tsx` - Google Maps integration for distance calculation and UI.
+- `src/components/ScorePanel.tsx` - Evaluation engine scoring the transcript.
+- `src/components/TranscriptPanel.tsx` - Live transcript UI.
+- `src/scenarios.ts` - Scenario configurations and target locations.
 
-3. **Enable client events (for transcript)**  
-   In the ElevenLabs dashboard, open your agent → **Advanced** → enable **Client events** so `onMessage` receives transcriptions and LLM replies.
 
-## Run
 
-```bash
-npm run dev
-```
 
-Then open the URL shown (e.g. http://localhost:5173). Allow microphone access when prompted and click **Start conversation**.
+## License
 
-## Build
-
-```bash
-npm run build
-npm run preview   # optional: preview production build
-```
-
-## Run on visionOS (Apple Vision Pro)
-
-This app is set up with [WebSpatial](https://webspatial.dev/) so you can run it as a **Packaged WebSpatial App** on Apple Vision Pro (visionOS).
-
-### Prerequisites
-
-- **Mac** with **Xcode** and **visionOS Simulator** (Xcode → Settings → Platforms → install visionOS + visionOS Simulator)
-- **Icons**: Add PWA icons so the visionOS app can be built. In `public/icons/` add:
-  - `icon-512.png` (512×512, purpose: any)
-  - `icon-1024-maskable.png` (1024×1024, maskable, no transparency)
-  Sample icons: [WebSpatial icon examples](https://webspatial.dev/assets/files/webspatial-icon-examples-cec65dea794c612f8b689d1d17aac9f3.zip)
-
-### Development (simulator)
-
-1. **Start the WebSpatial dev server** (serves the visionOS-specific build with hot reload):
-
-   ```bash
-   npm run dev:avp
-   ```
-
-   Note the URL (e.g. `http://localhost:5173/webspatial/avp/` or another port).
-
-2. **In another terminal**, run the WebSpatial Builder to package and launch the app in the visionOS simulator:
-
-   ```bash
-   XR_DEV_SERVER=http://localhost:5173/webspatial/avp/ npm run run:avp
-   ```
-
-   Use the same origin and path as the URL from step 1. The simulator will start, install the app, and load your site from the dev server.
-
-### Build for device / distribution
-
-- **Signed .ipa for your device**: Set `XR_PRE_SERVER` (optional, base URL of your deployed site or leave unset to bundle assets), `XR_BUNDLE_ID`, and `XR_TEAM_ID` (Apple Developer), then:
-
-  ```bash
-  npm run build:avp:ipa
-  ```
-
-- **Production build (visionOS-specific assets only)**:
-
-  ```bash
-  npm run build:avp
-  ```
-
-  Output is under `dist/webspatial/avp/`. Deploy that path so the Packaged WebSpatial App can load it (e.g. with `--base` when building the .ipa).
-
-For more options and publishing to App Store Connect, see [WebSpatial Builder docs](https://webspatial.dev/docs/development-guide/enabling-webspatial-in-web-projects/step-2-add-build-tool-for-packaged-webspatial-apps).
-
-## Stack
-
-- **Vite** + **React** + **TypeScript**
-- **@elevenlabs/react** — `useConversation`, WebRTC, `onMessage`, volume/frequency helpers
-- **Tailwind CSS** — layout and styling
-- **lucide-react** — icons
-- **WebSpatial** (`@webspatial/react-sdk`, `@webspatial/vite-plugin`, `@webspatial/builder`) — run on visionOS as a Packaged WebSpatial App
-
-## Layout
-
-- **Center**: Agent orb (volume-reactive visualization) and Start/End call button
-- **Right column**: Transcript (live), Summary (from last assistant turns), Audio (mic + agent bar visualizer)
-
-All of this uses the same patterns as the official ElevenLabs React/UI examples (orb, transcript, bar visualizer).
+This project is open-source and available under the [MIT License](LICENSE).
